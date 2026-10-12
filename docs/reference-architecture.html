@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tapo C310 — локальный просмотр на Mac: ответ и архитектура</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel2: #1f242e;
+    --line: #2c3340;
+    --text: #e7eaf0;
+    --muted: #9aa3b2;
+    --accent: #00b4a0;
+    --accent2: #ffb454;
+    --warn: #ff6b6b;
+    --ok: #46c98a;
+    --code: #1a1e26;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 0 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 22px; }
+  header {
+    padding: 44px 0 28px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #14181f 0%, #0f1115 100%);
+  }
+  header h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.3px; }
+  header .sub { color: var(--muted); font-size: 15px; }
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.4px;
+    background: rgba(0,180,160,0.14); color: var(--accent);
+    border: 1px solid rgba(0,180,160,0.35); margin-top: 12px;
+  }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 21px; margin: 0 0 16px; padding-left: 12px;
+    border-left: 4px solid var(--accent);
+  }
+  h3 { font-size: 16px; margin: 22px 0 10px; color: var(--accent2); }
+  p { margin: 10px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    background: var(--code); padding: 2px 6px; border-radius: 6px;
+    font-size: 13px; border: 1px solid var(--line);
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px 22px; margin: 14px 0;
+  }
+  .lead {
+    background: linear-gradient(135deg, rgba(0,180,160,0.10), rgba(0,180,160,0.02));
+    border: 1px solid rgba(0,180,160,0.30);
+    border-radius: var(--radius); padding: 20px 22px; margin: 14px 0;
+    font-size: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td:first-child { font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .win { color: var(--ok); font-weight: 600; }
+  .mid { color: var(--accent2); font-weight: 600; }
+  .lose { color: var(--warn); font-weight: 600; }
+  ul, ol { margin: 10px 0; padding-left: 24px; }
+  li { margin: 6px 0; }
+  .check li { list-style: none; position: relative; padding-left: 28px; }
+  .check li::before {
+    content: "✓"; position: absolute; left: 0; top: 0;
+    color: var(--ok); font-weight: 700;
+  }
+  .check li.opt::before { content: "•"; color: var(--accent2); }
+  .step { display: flex; gap: 14px; margin: 14px 0; }
+  .step .n {
+    flex: 0 0 34px; height: 34px; border-radius: 10px;
+    background: var(--panel2); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: var(--accent); font-size: 15px;
+  }
+  .step .b { flex: 1; }
+  .step .t { font-weight: 600; margin-bottom: 2px; }
+  .step .d { color: var(--muted); font-size: 14px; }
+
+  /* схема */
+  .flow { display: flex; flex-direction: column; gap: 6px; margin: 20px 0; align-items: stretch; }
+  .flowrow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .box {
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px 14px;
+  }
+  .box .t { font-weight: 700; font-size: 14px; }
+  .box .s { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .box .tag {
+    margin-top: 8px; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    display: inline-block;
+  }
+  .tag.js   { background: rgba(255,180,84,0.14); color: var(--accent2); border: 1px solid rgba(255,180,84,0.35); }
+  .tag.bin  { background: rgba(0,180,160,0.14); color: var(--accent); border: 1px solid rgba(0,180,160,0.35); }
+  .tag.hw   { background: rgba(155,163,178,0.14); color: var(--muted); border: 1px solid var(--line); }
+  .tag.msg  { background: rgba(70,201,138,0.14); color: var(--ok); border: 1px solid rgba(70,201,138,0.35); }
+  .site { flex: 1 1 220px; text-align: center; }
+  .center { flex: 1 1 100%; text-align: left; border-color: rgba(0,180,160,0.4); }
+  .center .t { color: var(--accent); font-size: 15px; }
+  .subitem { display: flex; gap: 10px; align-items: baseline; margin-top: 6px; font-size: 13px; }
+  .subitem .k { color: var(--muted); min-width: 130px; }
+  .out { flex: 1 1 200px; text-align: center; }
+  .arrow {
+    text-align: center; color: var(--accent); font-weight: 700;
+    font-size: 13px; padding: 2px 0;
+  }
+  .arrow span { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .note { color: var(--muted); font-size: 13px; border-left: 3px solid var(--line); padding-left: 12px; margin: 10px 0; }
+  footer { margin-top: 56px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Камеры Tapo C310 — локальный просмотр на Mac</h1>
+    <div class="sub">Офис: камеры → Keenetic → Mac. Локальный web на порту, как DSH web. Без VPN и серверов.</div>
+    <span class="badge">MVP: MediaMTX + Node.js + hls.js — всё бесплатно</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <h2>1. Вывод коротко</h2>
+    <div class="lead">
+      Делаем <strong>локальный web-интерфейс</strong> на Mac: ретранслятор <strong>MediaMTX</strong> тянет RTSP с камер офиса
+      и отдаёт видео в браузер (HLS/WebRTC), а маленький <strong>Node.js-сервер</strong> раздаёт страницу с сеткой камер.
+      Открываешь <code>http://localhost:3000</code> — и смотришь. Без VPN, VPS и внешних серверов.
+    </div>
+    <p>Камеры и Mac — в одной офисной сети (оба за Keenetic), поэтому RTSP-потоки видны напрямую, VPN не нужен.
+       Единственный «не-веб» кусочек — MediaMTX, потому что браузер не умеет играть RTSP. Его берём готовым, а не пишем.</p>
+  </section>
+
+  <section>
+    <h2>2. Как это устроено</h2>
+    <div class="flow">
+      <div class="flowrow">
+        <div class="box site">
+          <div class="t">Камеры C310 (офис)</div>
+          <div class="s">за Keenetic, статические IP</div>
+          <span class="tag hw">железо</span>
+        </div>
+        <div class="box site">
+          <div class="t">Keenetic</div>
+          <div class="s">та же сеть, что и Mac; VPN не нужен</div>
+          <span class="tag hw">сеть</span>
+        </div>
+      </div>
+      <div class="arrow">RTSP <span>порт 554</span></div>
+      <div class="box center">
+        <div class="t">MAC (локально)</div>
+        <div class="subitem"><span class="k">MediaMTX</span><span>RTSP → HLS / WebRTC</span><span class="tag bin">бинарник</span></div>
+        <div class="subitem"><span class="k">Node.js</span><span>/api/cameras + раздача UI</span><span class="tag js">пишем на JS</span></div>
+        <div class="subitem"><span class="k">Фронтенд</span><span>грид камер, плеер hls.js</span><span class="tag js">пишем на JS</span></div>
+      </div>
+      <div class="arrow">HLS / WebRTC <span>браузеру на localhost</span></div>
+      <div class="flowrow">
+        <div class="box out">
+          <div class="t">Браузер</div>
+          <div class="s">http://localhost:3000</div>
+          <span class="tag js">веб-UI</span>
+        </div>
+        <div class="box out">
+          <div class="t">Telegram-бот</div>
+          <div class="s">алерты (работают и локально)</div>
+          <span class="tag msg">опционально</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>Что пишем сами, что берём готовым</h3>
+    <ul>
+      <li><strong>Пишем на JS:</strong> Node-сервер (UI + `/api/cameras`) и фронтенд (грид + плеер).</li>
+      <li><strong>Берём готовым:</strong> MediaMTX (конфиг), плеер <code>hls.js</code>, Telegram Bot API.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. Почему сейчас не нужны VPN и сервер</h2>
+    <ul>
+      <li>Камеры и Mac в <strong>одной сети офиса</strong> → RTSP виден напрямую, VPN не нужен.</li>
+      <li>Просмотр нужен <strong>локально</strong> → хостинг/VPS не нужен.</li>
+      <li><strong>Telegram-алерты работают и с локального Mac</strong> — Mac шлёт сообщения в Telegram через свой интернет, сервер для этого не требуется.</li>
+    </ul>
+    <div class="note">Всё это «по мере роста» добавится без переписывания: VPN на Keenetic для других точек, VPS для 24/7.</div>
+  </section>
+
+  <section>
+    <h2>4. Что нужно для старта (чек-лист)</h2>
+    <ul class="check">
+      <li><strong>RTSP-аккаунт («Camera Account»)</strong> для каждой камеры — в приложении Tapo: Настройки камеры → Дополнительные настройки → Camera Account → логин/пароль.</li>
+      <li><strong>Статические IP камер</strong> на Keenetic (зарегистрированное устройство → фиксированный адрес).</li>
+      <li><strong>MediaMTX</strong> — <code>brew install mediamtx</code> (Homebrew уже есть).</li>
+      <li><strong>Node.js</strong> — уже есть (v24.21.0).</li>
+      <li class="opt"><strong>FFmpeg</strong> — уже есть (8.1.2), для детекта движения/скриншотов.</li>
+      <li class="opt"><strong>hls.js</strong> — плеер (CDN/файл).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Дорожная карта MVP</h2>
+    <div class="step"><div class="n">0</div><div class="b"><div class="t">Подготовка камер</div><div class="d">Camera Account, статические IP на Keenetic, проверка RTSP через ffplay/VLC.</div></div></div>
+    <div class="step"><div class="n">1</div><div class="b"><div class="t">MediaMTX</div><div class="d">Конфиг с камерами, проверка HLS/WebRTC-ссылки в браузере.</div></div></div>
+    <div class="step"><div class="n">2</div><div class="b"><div class="t">Node-сервер</div><div class="d">/api/cameras, раздача UI, команда запуска одной строкой.</div></div></div>
+    <div class="step"><div class="n">3</div><div class="b"><div class="t">Фронтенд</div><div class="d">Грид камер, плеер hls.js, полноэкран, статусы, автореконнект.</div></div></div>
+    <div class="step"><div class="n">4</div><div class="b"><div class="t">Запуск «как dsh web»</div><div class="d">start.sh / npm start → MediaMTX + Node, браузер на localhost:3000.</div></div></div>
+    <div class="step"><div class="n">5</div><div class="b"><div class="t">Алерты в Telegram (опц.)</div><div class="d">Офлайн/движение → сообщения в бот. Работает локально.</div></div></div>
+    <div class="note">Полная версия — в соседнем файле <code>plan.md</code>.</div>
+  </section>
+
+  <section>
+    <h2>6. Техфакты по Tapo C310</h2>
+    <div class="panel">
+      <ul>
+        <li>Видео: <code>H.264</code>, до 2K (2304×1296), два потока.</li>
+        <li>RTSP-адрес основного потока (высокое качество):<br>
+            <code>rtsp://логин:пароль@IP:554/stream1</code></li>
+        <li>RTSP-адрес низкого качества (для превью-сетки):<br>
+            <code>rtsp://логин:пароль@IP:554/stream2</code></li>
+        <li>Порт RTSP: <code>554</code>. Порт ONVIF: <code>2020</code>.</li>
+        <li>RTSP/ONVIF-доступ включается отдельно через «Camera Account» в приложении Tapo.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. Ограничения (осознанно) и как вырастет потом</h2>
+    <table>
+      <tr><th>Ограничение сейчас</th><th>Что даёт потом</th></tr>
+      <tr><td>Смотреть можно только из офисной сети</td><td class="mid">WireGuard на Keenetic — мульти-сайт и доступ отовсюду</td></tr>
+      <tr><td>Mac должен быть включён</td><td class="mid">Перенос центра на VPS (~$5/мес) или домашний сервер — 24/7</td></tr>
+      <tr><td>Алерт «движение» — опционально</td><td class="mid">ONVIF-события C310 или FFmpeg/Frigate</td></tr>
+      <tr><td>HLS задержка 2–5 с</td><td class="mid">WebRTC — доли секунды</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>8. Источники</h2>
+    <ul>
+      <li><a href="https://www.tp-link.com/us/support/faq/2680/">TP-Link FAQ 2680 — просмотр камеры Tapo на PC/NAS/NVR по RTSP/ONVIF</a></li>
+      <li><a href="https://www.tp-link.com/us/support/faq/4465/">TP-Link FAQ 4465 — частые вопросы по ONVIF и RTSP у камер Tapo</a></li>
+      <li><a href="https://www.tapo.com/us/faq/70/">Tapo FAQ 70 — подключение камеры Tapo к NAS/NVR</a></li>
+      <li><a href="https://github.com/bluenviron/mediamtx">MediaMTX — ретранслятор RTSP → HLS/WebRTC (GitHub)</a></li>
+      <li><a href="https://core.telegram.org/bots/api">Telegram Bot API — отправка сообщений</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      Артефакт-ответ по задаче «камеры Tapo C310: локальный просмотр на Mac (офис → Keenetic → Mac)».
+      Уровень — верхнеуровневый, без кода. Дальше по плану: Фаза 0 (Camera Account + статические IP), затем JS-код вместе.
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

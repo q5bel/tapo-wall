@@ -1,0 +1,24 @@
+{
+  "httpPort": 3000,
+  "mediamtx": { "hlsAddress": ":8888", "apiAddress": ":9997" },
+  "cameras": [
+    {
+      "id": "office-front",
+      "name": "Офис — вход",
+      "host": "192.168.1.101",
+      "port": 554,
+      "username": "tapo",
+      "password": "CHANGE_ME",
+      "streams": { "hd": "/stream1", "preview": "/stream2" }
+    },
+    {
+      "id": "office-back",
+      "name": "Офис — склад",
+      "host": "192.168.1.102",
+      "port": 554,
+      "username": "tapo",
+      "password": "CHANGE_ME",
+      "streams": { "hd": "/stream1", "preview": "/stream2" }
+    }
+  ]
+}

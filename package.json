@@ -1,0 +1,14 @@
+{
+  "name": "tapo-wall",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "fetch:mediamtx": "node scripts/fetch-mediamtx.mjs",
+    "build:web": "npm --prefix web run build",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "npm --prefix server test"
+  }
+}

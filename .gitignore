@@ -1,0 +1,17 @@
+node_modules/
+dist/
+bin/
+config/cameras.json
+.env
+.env.*
+*.local
+.DS_Store
+coverage/
+server/.run/
+.npm-cache/
+*.log
+browser-screenshots/
+
+# TLS material MediaMTX generates in its working directory (repo root).
+/auto.key
+/auto.crt

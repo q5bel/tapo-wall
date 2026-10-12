@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          # Root has no package-lock.json, so point the cache at both workspaces.
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+
+      - name: Install server dependencies
+        run: npm --prefix server ci
+
+      - name: Install web dependencies
+        run: npm --prefix web ci
+
+      - name: Typecheck server (tsc)
+        run: npm --prefix server run build
+
+      - name: Build web (tsc -b && vite build)
+        run: npm --prefix web run build
+
+      - name: Test server (vitest run)
+        run: npm --prefix server test
+
+      - name: Lint web (oxlint)
+        run: npm --prefix web run lint
