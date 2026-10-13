@@ -81,6 +81,31 @@ describe('ConfigStore.load', () => {
   });
 });
 
+describe('ConfigStore.empty', () => {
+  it('returns defaultConfig() in memory without reading or creating the file', async () => {
+    const dir = await makeTempDir();
+    const filePath = join(dir, 'cameras.json');
+
+    const store = ConfigStore.empty(filePath);
+
+    expect(store.get()).toEqual(defaultConfig());
+    expect(store.get().cameras).toEqual([]);
+    expect(existsSync(filePath)).toBe(false);
+  });
+
+  it('keeps the given path, so a later save persists there', async () => {
+    const dir = await makeTempDir();
+    const filePath = join(dir, 'cameras.json');
+
+    const store = ConfigStore.empty(filePath);
+    await store.save(makeConfig({ httpPort: 4500 }));
+
+    const written = JSON.parse(await readFile(filePath, 'utf8')) as Config;
+    expect(written.httpPort).toBe(4500);
+    expect(store.get()).toEqual(written);
+  });
+});
+
 describe('ConfigStore.save', () => {
   it('writes the file and keeps a .bak copy of the previous contents', async () => {
     const dir = await makeTempDir();

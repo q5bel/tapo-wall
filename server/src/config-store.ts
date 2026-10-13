@@ -59,6 +59,20 @@ export class ConfigStore {
   }
 
   /**
+   * Create a store that starts from `defaultConfig()` without touching the
+   * filesystem at all.
+   *
+   * Used for graceful degradation: when the real file cannot be read (or is
+   * invalid), the server still boots and later saves persist normally.
+   *
+   * @param filePath Optional path override; defaults to
+   *   `<repo>/config/cameras.json`.
+   */
+  static empty(filePath?: string): ConfigStore {
+    return new ConfigStore(filePath ?? fileURLToPath(DEFAULT_CONFIG_PATH), defaultConfig());
+  }
+
+  /**
    * Read and normalize the file into memory. A missing file falls back to
    * `defaultConfig()` with a warning; a malformed or invalid file throws.
    */

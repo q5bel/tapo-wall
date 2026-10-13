@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildCameraList, hostFromHeader, parseListenPort } from './cameras.js';
-import type { Config } from './config.js';
+import { DEFAULT_LAYOUT, type Config } from './config.js';
 
 const SECRET = 'SUPER_SECRET_PASSWORD';
 const USER = 'SUPER_SECRET_USER';
@@ -66,10 +66,33 @@ describe('buildCameraList', () => {
     expect(Object.keys(buildCameraList(testConfig(), 'localhost')[0] ?? {}).sort()).toEqual([
       'hd',
       'id',
+      'layout',
       'name',
       'preview',
       'status',
     ]);
+  });
+
+  it('fills in DEFAULT_LAYOUT when the camera carries none', () => {
+    const [camera] = buildCameraList(testConfig(), 'localhost');
+
+    expect(camera?.layout).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it('exposes the camera layout when it carries one', () => {
+    const config = testConfig();
+    config.cameras[0]!.layout = {
+      x: 12,
+      y: 34,
+      w: 640,
+      h: 360,
+      rotation: 90,
+      scale: 2,
+    };
+
+    const [camera] = buildCameraList(config, 'localhost');
+
+    expect(camera?.layout).toEqual({ x: 12, y: 34, w: 640, h: 360, rotation: 90, scale: 2 });
   });
 
   it('uses the HLS port from the config and the MediaMTX WebRTC default', () => {
@@ -189,6 +212,7 @@ describe('buildCameraList - public camera list contract', () => {
     expect(Object.keys(result[0] ?? {}).sort()).toEqual([
       'hd',
       'id',
+      'layout',
       'name',
       'preview',
       'status',

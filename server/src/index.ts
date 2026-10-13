@@ -1,92 +1,32 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import express from 'express';
-
-import { buildCameraList } from './cameras.js';
-import { defaultConfig, loadConfig, type Config } from './config.js';
+import { createApp } from './app.js';
+import { ConfigStore } from './config-store.js';
 import { startMediamtx } from './mediamtx-runner.js';
+import { applyConfig } from './runtime.js';
 import { startStatusMonitor } from './status.js';
 
-const app = express();
-const startedAt = Date.now();
-
 /**
- * Load the config once at startup and keep it in memory for the process
- * lifetime: request handlers never touch the filesystem, and the camera
- * credentials stay server-side.
+ * Open the config store, degrading to an empty in-memory config when the file
+ * cannot be used: serving an empty camera list beats refusing to boot, and the
+ * operator sees the reason in the log. A later `PUT /api/config` still persists
+ * to the default path.
  */
-async function loadStartupConfig(): Promise<Config> {
+async function openStore(): Promise<ConfigStore> {
   try {
-    return await loadConfig();
+    return await ConfigStore.open();
   } catch (err) {
-    // Serving an empty camera list beats refusing to boot; the operator sees
-    // the reason in the log.
     console.error(`failed to load config: ${(err as Error).message}`);
-    return defaultConfig();
+    return ConfigStore.empty();
   }
 }
 
-const config = await loadStartupConfig();
-
-app.get('/api/health', (_req, res) => {
-  res.json({
-    ok: true,
-    uptime: Math.round((Date.now() - startedAt) / 1000),
-  });
-});
-
-// Registered before any static-file middleware so a built SPA can never
-// shadow the API route.
-app.get('/api/cameras', (req, res) => {
-  res.json({ cameras: buildCameraList(config, req.headers.host) });
-});
-
-/**
- * Built SPA location. From this module the path is always
- * `<repo>/web/dist`, whether we run from `server/src` (tsx) or
- * `server/dist` (compiled), because both sit two levels below the root.
- */
-const webDistDir = fileURLToPath(new URL('../../web/dist', import.meta.url));
-const webIndexFile = path.join(webDistDir, 'index.html');
-const webBuilt = existsSync(webIndexFile);
-
-// Everything below is registered AFTER every /api route, so static files and
-// the SPA fallback can never take precedence over the API.
-if (webBuilt) {
-  app.use(express.static(webDistDir));
-} else {
-  console.warn('web/dist not found; run: npm run build:web');
-}
-
-// SPA fallback: client-side routes (e.g. /cameras/kitchen) must return
-// index.html instead of a 404. Explicitly skipped for /api so an unknown API
-// path stays a 404 rather than silently returning HTML.
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    next();
-    return;
-  }
-
-  if (!webBuilt) {
-    res
-      .status(404)
-      .type('text/plain')
-      .send('web/dist not found; run: npm run build:web');
-    return;
-  }
-
-  res.sendFile(webIndexFile, (err) => {
-    if (err) next(err);
-  });
-});
+const store = await openStore();
+const app = createApp({ store, applyConfig });
 
 // `PORT` wins when set (that is what `scripts/start.mjs` and containers use);
 // otherwise fall back to the configured `httpPort` (default 3000).
-const port = Number(process.env.PORT) || config.httpPort;
+const port = Number(process.env.PORT) || store.get().httpPort;
 
-app.listen(port, async () => {
+app.listen(port, () => {
   console.log(`tapo-wall-server listening on http://localhost:${port}`);
 
   if (process.env.MEDIAMTX_DISABLE === '1') {
@@ -96,12 +36,10 @@ app.listen(port, async () => {
 
   // Status polling is independent of the spawn below: it keeps reporting
   // `connecting` (never stale values) if MediaMTX cannot be started at all.
-  startStatusMonitor(config);
+  startStatusMonitor(store.get());
 
-  try {
-    await startMediamtx(config);
-  } catch (err) {
+  startMediamtx(store.get()).catch((err: unknown) => {
     // The UI must stay usable even when MediaMTX cannot start.
     console.error(`failed to start mediamtx: ${(err as Error).message}`);
-  }
+  });
 });

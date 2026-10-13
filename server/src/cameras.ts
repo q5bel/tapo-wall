@@ -1,4 +1,4 @@
-import type { Camera, Config } from './config.js';
+import { DEFAULT_LAYOUT, type Camera, type CameraLayout, type Config } from './config.js';
 import { getStatus, type CameraStatus } from './status.js';
 
 export type { CameraStatus };
@@ -29,6 +29,8 @@ export interface CameraInfo {
   status: CameraStatus;
   preview: CameraEndpoints;
   hd: CameraEndpoints;
+  /** Placement of this camera inside the wall; always complete. */
+  layout: CameraLayout;
 }
 
 /** Stream variants exposed per camera, matching the MediaMTX path suffixes. */
@@ -122,6 +124,7 @@ export function buildCameraList(config: Config, reqHost?: string): CameraInfo[] 
       status: getStatus(camera.id),
       preview: buildEndpoints(camera, 'preview', host, hlsPort, webrtcPort),
       hd: buildEndpoints(camera, 'hd', host, hlsPort, webrtcPort),
+      layout: camera.layout ?? DEFAULT_LAYOUT,
     }),
   );
 }
