@@ -16,7 +16,6 @@ interface CameraTileProps {
   selected?: boolean
   onSelect?: (id: string) => void
   onOpen: (camera: Camera) => void
-  onLayoutChange?: (id: string, layout: CameraLayout) => void
   /**
    * Gesture entry point. The tile only reports where a gesture started; the
    * canvas listens for the following moves and writes the new layout back.

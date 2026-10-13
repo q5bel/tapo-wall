@@ -65,7 +65,10 @@ export default function App() {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configRef = useRef<ConfigView | null>(config)
-  configRef.current = config
+
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
 
   // Cameras: the secret-free wall list (never requires a token).
   useEffect(() => {
