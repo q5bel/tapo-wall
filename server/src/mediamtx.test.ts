@@ -43,6 +43,18 @@ describe('generateMediamtxYaml', () => {
     expect(parsed.apiAddress).toBe(':9997');
   });
 
+  it('always enables WebRTC and pins webrtcAddress only when configured', () => {
+    const withoutAddress = parse(generateMediamtxYaml(minimalConfig()));
+    expect(withoutAddress.webrtc).toBe(true);
+    expect(withoutAddress.webrtcAddress).toBeUndefined();
+
+    const config = minimalConfig();
+    config.mediamtx.webrtcAddress = ':8189';
+    const withAddress = parse(generateMediamtxYaml(config));
+    expect(withAddress.webrtc).toBe(true);
+    expect(withAddress.webrtcAddress).toBe(':8189');
+  });
+
   it('produces exactly two paths per camera', () => {
     const config = minimalConfig();
     config.cameras.push({

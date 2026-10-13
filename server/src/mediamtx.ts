@@ -18,6 +18,14 @@ export interface MediamtxConfig {
    */
   api: true;
   apiAddress: string;
+  /**
+   * Enable WebRTC/WHEP. Written explicitly so the WHEP URLs that the API
+   * advertises always have a live listener behind them, independent of the
+   * MediaMTX build's defaults.
+   */
+  webrtc: true;
+  /** WebRTC/WHEP listen address; MediaMTX uses `:8889` when this is omitted. */
+  webrtcAddress?: string;
   paths: Record<string, MediamtxPath>;
 }
 
@@ -40,13 +48,22 @@ export function buildMediamtxConfig(config: Config): MediamtxConfig {
     };
   }
 
-  return {
+  const mediamtx: MediamtxConfig = {
     logLevel: 'info',
     hlsAddress: config.mediamtx.hlsAddress,
     api: true,
     apiAddress: config.mediamtx.apiAddress,
+    webrtc: true,
     paths,
   };
+
+  // Only pin the address when the operator configured one: otherwise leave it
+  // out so MediaMTX's own default (:8889) matches the WHEP URLs from cameras.ts.
+  if (config.mediamtx.webrtcAddress) {
+    mediamtx.webrtcAddress = config.mediamtx.webrtcAddress;
+  }
+
+  return mediamtx;
 }
 
 /**

@@ -82,7 +82,9 @@ app.get('*', (req, res, next) => {
   });
 });
 
-const port = Number(process.env.PORT) || 3000;
+// `PORT` wins when set (that is what `scripts/start.mjs` and containers use);
+// otherwise fall back to the configured `httpPort` (default 3000).
+const port = Number(process.env.PORT) || config.httpPort;
 
 app.listen(port, async () => {
   console.log(`tapo-wall-server listening on http://localhost:${port}`);

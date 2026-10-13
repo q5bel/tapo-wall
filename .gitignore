@@ -11,6 +11,7 @@ server/.run/
 .npm-cache/
 *.log
 browser-screenshots/
+.e2e/
 
 # TLS material MediaMTX generates in its working directory (repo root).
 /auto.key
