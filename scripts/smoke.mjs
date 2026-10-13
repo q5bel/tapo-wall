@@ -8,8 +8,12 @@
  *   1. `npm --prefix server run build` and `npm --prefix web run build` succeed.
  *   2. The compiled server boots with MediaMTX disabled on a non-default port.
  *   3. `GET /api/health`   -> 200 and `{ ok: true }`.
- *   4. `GET /api/cameras`  -> 200 and `{ cameras: [...] }`.
- *   5. `GET /`             -> 200 and a built `index.html` (the `#root` div).
+ *   4. `GET /api/cameras`  -> 200, `{ cameras: [...] }`, every camera with a layout.
+ *   5. `GET /api/config`   -> 200 and a secret-free config view for the editor.
+ *   6. `GET /`             -> 200 and a built `index.html` (the `#root` div).
+ *
+ * Every check is read-only: `PUT /api/config` is deliberately never called,
+ * because it would rewrite the real `config/cameras.json`.
  *
  * Prints `SMOKE OK` on success, a plain-language reason otherwise, and always
  * terminates the server child before exiting with 0 or 1.
@@ -167,6 +171,35 @@ async function getJson(route, expectedStatus = 200) {
   }
 }
 
+/** True for a plain object: the only shape a `layout`/`mediamtx` may have. */
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Every field a complete camera layout must carry, as a number. */
+const LAYOUT_FIELDS = ['x', 'y', 'w', 'h', 'rotation', 'scale'];
+
+/**
+ * Assert that one camera `layout` is a plain object with all six numeric
+ * fields. Both `/api/cameras` and `/api/config` serve a layout, so the check is
+ * shared and `route`/`label` only shape the failure message.
+ */
+function assertLayout(layout, route, label) {
+  if (!isPlainObject(layout)) {
+    throw new Error(
+      `${route} ${label}.layout expected an object, got ${JSON.stringify(layout)?.slice(0, 120)}`,
+    );
+  }
+
+  for (const field of LAYOUT_FIELDS) {
+    if (typeof layout[field] !== 'number') {
+      throw new Error(
+        `${route} ${label}.layout.${field} expected a number, got ${JSON.stringify(layout[field])?.slice(0, 120)}`,
+      );
+    }
+  }
+}
+
 async function smoke() {
   // 1. Build both halves of the app.
   runStep('server build', ['--prefix', 'server', 'run', 'build']);
@@ -193,7 +226,7 @@ async function smoke() {
   // 3. Poll until the health endpoint answers.
   await waitForHealth();
 
-  // 4. Assert the three public surfaces.
+  // 4. Assert the read-only camera + health surfaces.
   const health = await getJson('/api/health');
   if (health.ok !== true) {
     throw new Error(`/api/health body.ok expected true, got ${JSON.stringify(health.ok)}`);
@@ -206,8 +239,57 @@ async function smoke() {
       `/api/cameras body.cameras expected an array, got ${JSON.stringify(cameras.cameras)?.slice(0, 120)}`,
     );
   }
-  console.log(`OK  /api/cameras     200 { cameras: [${cameras.cameras.length} item(s)] }`);
+  cameras.cameras.forEach((camera, index) =>
+    assertLayout(camera.layout, '/api/cameras', `cameras[${index}]`),
+  );
+  console.log(
+    `OK  GET /api/cameras 200 { cameras: [${cameras.cameras.length} item(s)] } layout present`,
+  );
 
+  // 5. The config-editor surface. Read-only by design: a `PUT /api/config` would
+  //    rewrite the real config/cameras.json, so this test never sends one.
+  const config = await getJson('/api/config');
+  if (!isPlainObject(config)) {
+    throw new Error(
+      `/api/config body expected an object, got ${JSON.stringify(config)?.slice(0, 120)}`,
+    );
+  }
+  if (!Array.isArray(config.cameras)) {
+    throw new Error(
+      `/api/config body.cameras expected an array, got ${JSON.stringify(config.cameras)?.slice(0, 120)}`,
+    );
+  }
+  if (typeof config.authEnabled !== 'boolean') {
+    throw new Error(
+      `/api/config body.authEnabled expected a boolean, got ${JSON.stringify(config.authEnabled)}`,
+    );
+  }
+  if (typeof config.httpPort !== 'number') {
+    throw new Error(
+      `/api/config body.httpPort expected a number, got ${JSON.stringify(config.httpPort)}`,
+    );
+  }
+  if (!isPlainObject(config.mediamtx)) {
+    throw new Error(
+      `/api/config body.mediamtx expected an object, got ${JSON.stringify(config.mediamtx)?.slice(0, 120)}`,
+    );
+  }
+  config.cameras.forEach((camera, index) => {
+    // The password itself is replaced by this boolean; the RTSP path stays server-side.
+    if (typeof camera.passwordSet !== 'boolean') {
+      throw new Error(
+        `/api/config cameras[${index}].passwordSet expected a boolean, got ${JSON.stringify(camera.passwordSet)}`,
+      );
+    }
+    assertLayout(camera.layout, '/api/config', `cameras[${index}]`);
+  });
+  // Quoted key only: the `passwordSet` flag legitimately contains "passwordSet".
+  if (JSON.stringify(config).includes('"password"')) {
+    throw new Error('/api/config leaked a "password" field (the view must stay secret-free)');
+  }
+  console.log('OK  GET /api/config  200 (secret-free)');
+
+  // 6. The built SPA shell, served last.
   const { status, text } = await getText('/');
   if (status !== 200) {
     throw new Error(`GET / expected 200, got ${status}: ${text.slice(0, 200)}`);
