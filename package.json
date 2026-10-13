@@ -9,6 +9,6 @@
     "fetch:mediamtx": "node scripts/fetch-mediamtx.mjs",
     "build:web": "npm --prefix web run build",
     "smoke": "node scripts/smoke.mjs",
-    "test": "npm --prefix server test"
+    "test": "npm --prefix server test && npm --prefix web test"
   }
 }

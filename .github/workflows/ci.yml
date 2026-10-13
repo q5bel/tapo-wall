@@ -44,5 +44,8 @@ jobs:
       - name: Test server (vitest run)
         run: npm --prefix server test
 
+      - name: Test web (vitest run)
+        run: npm --prefix web test
+
       - name: Lint web (oxlint)
         run: npm --prefix web run lint
