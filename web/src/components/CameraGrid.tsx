@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { CameraTile } from '@/components/CameraTile'
+import { DEFAULT_LAYOUT, autoArrange } from '@/lib/layout'
 import type { Camera } from '@/lib/types'
 
 interface CameraGridProps {
@@ -7,17 +9,30 @@ interface CameraGridProps {
   onSelect: (camera: Camera) => void
 }
 
+/** Vertical room the wall reserves for the arranged tiles, in CSS pixels. */
+const WALL_HEIGHT = 600
+
 /**
- * Responsive wall of camera tiles.
+ * Read-only wall of camera tiles.
  *
- * One column on phones, two on tablets, three on wide screens. Each tile owns
- * its own HLS player, so a camera going down only blanks that one tile.
+ * Thin wrapper over {@link CameraTile}: the tiles are laid out once with
+ * {@link autoArrange} and rendered in `view` mode, where a click opens the
+ * camera. The interactive free-form canvas is {@link CameraCanvas}; this stays
+ * as the simple, non-editable overview.
  */
 export function CameraGrid({ cameras, onSelect }: CameraGridProps) {
+  const layouts = useMemo(() => autoArrange(cameras.map((camera) => camera.id)), [cameras])
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="relative" style={{ height: WALL_HEIGHT }}>
       {cameras.map((camera) => (
-        <CameraTile key={camera.id} camera={camera} onOpen={onSelect} />
+        <CameraTile
+          key={camera.id}
+          camera={camera}
+          layout={layouts[camera.id] ?? DEFAULT_LAYOUT}
+          mode="view"
+          onOpen={onSelect}
+        />
       ))}
     </div>
   )
